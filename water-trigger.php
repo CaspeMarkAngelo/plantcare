@@ -55,6 +55,14 @@ while ($row = $result->fetch_assoc()) {
     $plantName = $row['plant_name']; // Use this variable for the plant name
 }
 
+// Fetch notifications and unread count
+$notification_query = "SELECT `id`, `device_id`, `device_name`, `message`, `created_at`, `is_read` FROM `notifications` ORDER BY `id` DESC";
+$notifications_result = $conn->query($notification_query);
+
+$unread_count_query = "SELECT COUNT(*) AS unread_count FROM notifications WHERE is_read = 0";
+$unread_count_result = $conn->query($unread_count_query);
+$unread_count = $unread_count_result->fetch_assoc()['unread_count'];
+
 ?>
 <head>
     <title>water trigger</title>
@@ -71,14 +79,43 @@ while ($row = $result->fetch_assoc()) {
         ">
     <h2 class>Control Device</h2>
     <div>
-    <?php include('notifications.php')?>
+    
+     <!-- Notification Icon and Count -->
+     <div id="notification-icon" style="position: relative; cursor: pointer;">
+                <span class="icon">
+                    <img src="assets/notification.png" alt="Notifications" width="50">
+                </span>
+                <span id="notification-count" style="position: absolute; top: -5px; right: -5px; background-color: red; color: white; border-radius: 50%; padding: 2px 6px; font-size: 12px; <?php echo ($unread_count > 0) ? 'display: block;' : 'display: none;'; ?>">
+                    <?php echo $unread_count; ?>
+                </span>
+            </div>
+        </div>
     </div>
-    </div>
-        <span id="notification-badge" class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger" style="display: none;">
-            0
-        </span>
-    </button></h4>
         
+
+     <!-- Modal for Notifications -->
+     <div class="modal fade" id="notificationModal" tabindex="-1" aria-labelledby="notificationModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="notificationModalLabel">Notifications</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body" id="notifications-list">
+                    <!-- Notifications will be populated here -->
+                    <?php
+                    if ($notifications_result->num_rows > 0) {
+                        while ($row = $notifications_result->fetch_assoc()) {
+                            echo '<p>' . $row['message'] . ' - ' . $row['device_name'] . ' (' . $row['created_at'] . ')</p>';
+                        }
+                    } else {
+                        echo "No notifications available.";
+                    }
+                    ?>
+                </div>
+            </div>
+        </div>
+    </div>
 
     <!-- Modal -->
     <div class="modal fade" id="notificationsModal" tabindex="-1" aria-labelledby="notificationsModalLabel" aria-hidden="true">
@@ -260,6 +297,8 @@ while ($row = $result->fetch_assoc()) {
     setInterval(checkAndInsertSchedules, 60000); // Adjust the interval as needed
 </script>
 <script>
+
+
 
 function clearScheduler() {
     const deviceId = document.getElementById('device-select').value;
