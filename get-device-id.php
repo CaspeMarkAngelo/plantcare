@@ -5,7 +5,7 @@ include('config/db.php');
 $response = [];
 
 // Retrieve the most recent device with a scheduled start date
-$query = "SELECT device_id FROM watering_time WHERE start_date <= NOW() ORDER BY start_date ASC LIMIT 1";
+$query = "SELECT device_id FROM watering_time WHERE CONCAT(schedule_date, ' ', schedule_time) <= NOW() ORDER BY start_date ASC LIMIT 1";
 $result = $conn->query($query);
 
 if ($result && $result->num_rows > 0) {

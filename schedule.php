@@ -41,7 +41,7 @@ if ($result && $result->num_rows > 0) {
 }
 ?>
 <body>
-    <div class="content">
+<div class="content">
         <div class="form-selector">
             <button type="button" id="showWateringSchedule">Watering Schedule</button>
             <button type="button" id="showAdvancedScheduling">Advanced Scheduling</button>
@@ -49,400 +49,250 @@ if ($result && $result->num_rows > 0) {
 
         <div class="schedule-form">
             <!-- Watering Schedule Form -->
-            <form id="startDateForm" style="display: none;">
+            <form id="scheduleForm">
                 <fieldset>
                     <legend>Watering Schedule:</legend>
                     <div class="form-group">
-                        <div class="device-select-container">
-                            <p>Select Device:</p>
+                        <!-- Select Device -->
+                        <div>
+                            <label for="device_id">Select Device:</label>
                             <select id="device_id" name="device_id" required>
                                 <option value="">Select a device</option>
                                 <?php foreach ($devices as $device): ?>
-                                    <option value="<?php echo $device['id']; ?>"><?php echo htmlspecialchars($device['device_name']); ?></option>
+                                    <option value="<?php echo $device['id']; ?>">
+                                        <?php echo htmlspecialchars($device['device_name']); ?>
+                                    </option>
                                 <?php endforeach; ?>
                             </select>
                         </div>
-                        <div class="date-time-container">
-                            <p>Set start date and time:</p>
-                            <input type="datetime-local" required id="start_date" name="start_date">
+
+                        <!-- Day Checkboxes -->
+                        <div>
+                            <label>Select Days:</label><br>
+                            <input type="checkbox" id="sunday" name="days[]" value="Sunday"> Sunday
+                            <input type="checkbox" id="monday" name="days[]" value="Monday"> Monday
+                            <input type="checkbox" id="tuesday" name="days[]" value="Tuesday"> Tuesday
+                            <input type="checkbox" id="wednesday" name="days[]" value="Wednesday"> Wednesday
+                            <input type="checkbox" id="thursday" name="days[]" value="Thursday"> Thursday
+                            <input type="checkbox" id="friday" name="days[]" value="Friday"> Friday
+                            <input type="checkbox" id="saturday" name="days[]" value="Saturday"> Saturday
                         </div>
+
+                        <!-- Execution Count -->
+                        <div>
+                            <label for="execution_count">Execution Count:</label>
+                            <input type="number" id="execution_count" name="execution_count" required min="1" />
+                        </div>
+
+                        <!-- Dynamic Time Inputs -->
+                        <div id="timeInputs"></div>
+
                         <button type="submit">Submit</button>
-                    </div>
-                </fieldset>
-            </form>
-            
-            <!-- Advanced Scheduling Form -->
-            <form id="scheduleTypeForm" style="display: none;">
-                <fieldset>
-                    <legend>Advanced Scheduling:</legend>
-                    <div class="form-group">
-                        <div class="device-select-container">
-                            <p>Select Device:</p>
-                            <select id="deviceid" name="deviceid" required>
-                                <option value="">Select a device</option>
-                                <?php foreach ($devices as $device): ?>
-                                    <option value="<?php echo $device['id']; ?>"><?php echo htmlspecialchars($device['device_name']); ?></option>
-                                <?php endforeach; ?>
-                            </select>
-                        </div>
-                        <div class="schedule-type-container">
-                            <p>Select Schedule Type:</p>
-                            <select id="schedule_type" name="schedule_type" required>
-                                <option value="daily">Daily</option>
-                                <option value="weekly">Weekly</option>
-                                <option value="monthly">Monthly</option>
-                            </select>
-                        </div>
-                        <div class="execution-container">
-                            <p>Number of Executions:</p>
-                            <input type="number" id="execution_count" name="execution_count" min="1" required>
-                        </div>
-                        <div class="interval-container">
-                            <p>Execution Interval (in hours):</p>
-                            <input type="number" id="execution_interval" name="execution_interval" min="1" required>
-                        </div>
-                        <button type="submit">Set Schedule</button>
                     </div>
                 </fieldset>
             </form>
         </div>
     </div>
-
     <script>
-    document.addEventListener('DOMContentLoaded', function () {
-        const showWateringSchedule = document.getElementById('showWateringSchedule');
-        const showAdvancedScheduling = document.getElementById('showAdvancedScheduling');
-        const startDateForm = document.getElementById('startDateForm');
-        const scheduleTypeForm = document.getElementById('scheduleTypeForm');
+    $(document).ready(function () {
+            // Dynamically generate time inputs based on execution count
+            $('#execution_count').on('input', function () {
+                let count = $(this).val();
+                let timeInputs = $('#timeInputs');
+                timeInputs.empty();
 
-        showWateringSchedule.addEventListener('click', function () {
-            startDateForm.style.display = 'block';
-            scheduleTypeForm.style.display = 'none';
-        });
-
-        showAdvancedScheduling.addEventListener('click', function () {
-            scheduleTypeForm.style.display = 'block';
-            startDateForm.style.display = 'none';
-        });
-    });
-    </script>
-</body>
-</div>
-<script>
-    function controlDeviceRelay(deviceId, action) {
-    const relayState = action === 'on' ? 'RELAY_ON' : 'RELAY_OFF';
-    const message = action === 'on' ? 'Relay has been turned ON' : 'Relay has been turned OFF';
-
-    // Insert notification message into the database
-    fetch('insert-notification.php', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/x-www-form-urlencoded'
-        },
-        body: `device_id=${deviceId}&message=${message}`
-    })
-    .then(response => response.text())
-    .then(data => {
-        console.log(`Notification inserted: ${data}`);
-    })
-    .catch(error => console.error('Error:', error));
-
-    // Fetch control-relay.php with updated relay state
-    fetch(`http://localhost/capstone-redef/control-relay.php`, {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/x-www-form-urlencoded'
-        },
-        body: `device_id=${deviceId}&relayState=${relayState}`
-    })
-    .then(response => response.json())
-    .then(data => {
-        console.log(`Relay state updated for device ${deviceId}:`, data);
-        if (data.success) {
-            alert(data.success);  
-            window.location.reload(); 
-        } else if (data.error) {
-            alert(data.error);  
-        } else if (data.message) {
-            alert(data.message);  
-        }
-        
-    })
-    .catch(error => console.error('Error:', error));
-}
-    //new code
-    function checkScheduledDevice() {
-    fetch('get-device-id.php')
-        .then(response => response.json())
-        .then(data => {
-            if (data.device_id) {
-                controlDeviceRelay(data.device_id, 'on'); 
-                window.location.reload(); 
-            } else if (data.error) {
-                console.log(data.error); 
-            }
-        })
-        .catch(error => console.error('Error:', error));
-}
-setInterval(checkScheduledDevice, 100); 
-
-function checkAndDeleteSchedules() {
-    fetch('delete-schedule.php')
-        .then(response => response.json())
-        .then(data => {
-            if (data.length > 0) {
-                data.forEach(message => {
-                    console.log(message);
-                    alert(message); 
-                    window.location.reload();  
-                });
-            } else {
-                console.log("No schedules to delete.");
-            }
-        })
-        .catch(error => console.error('Error:', error));
-}
-
-setInterval(checkAndDeleteSchedules, 6000);
-
-function updateMoistureLevel(deviceId, moistureLevel) {
-    if (moistureLevel < 1 || moistureLevel > 100) {
-        alert("Please enter a percentage between 1 and 100.");
-        return;
-    }
-
-    fetch('update-moisture-level.php', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/x-www-form-urlencoded'
-        },
-        body: `device_id=${deviceId}&moisture_level=${moistureLevel}`
-    })
-    .then(response => response.text())
-    .then(data => {
-        alert(`Moisture level updated to ${moistureLevel}%: ${data}`);
-    })
-    .catch(error => console.error('Error:', error));
-}
-$(document).ready(function () {
-    $('#scheduleTypeForm').on('submit', function (event) {
-        event.preventDefault();
-
-        const deviceId = $('#deviceid').val();
-        const scheduleType = $('#schedule_type').val();
-        const executionCount = $('#execution_count').val();
-        const executionInterval = $('#execution_interval').val();
-
-        if (!deviceId || !scheduleType || !executionCount || !executionInterval) {
-            alert("All fields are required.");
-            return;
-        }
-
-        // Convert interval to milliseconds
-        const intervalMs = executionInterval * 60 * 60 * 1000;
-
-        // Save schedule in the database
-        $.ajax({
-            url: 'set-schedule-type.php',
-            type: 'POST',
-            data: {
-                deviceid: deviceId,
-                schedule_type: scheduleType,
-                execution_count: executionCount,
-                interval_ms: intervalMs
-            },
-            success: function (response) {
-                alert(response);
-            },
-            error: function () {
-                alert('Error occurred while setting the schedule.');
-            }
-        });
-
-        // Trigger execution based on schedule
-        let executionDone = 0;
-        const scheduler = setInterval(() => {
-            if (executionDone >= executionCount) {
-                clearInterval(scheduler);
-                alert(`Schedule for device ${deviceId} completed.`);
-                return;
-            }
-
-            // Call relay control
-            controlDeviceRelay(deviceId, 'on');
-
-            executionDone++;
-        }, intervalMs);
-    });
-});
-
-
-
-    $(document).ready(function() {
-        $('#addDeviceForm').on('submit', function(event) {
-            event.preventDefault();
-            const deviceName = $('#device_name').val();
-
-            $.ajax({
-                url: 'add-device.php',
-                type: 'POST',
-                data: { device_name: deviceName },
-                success: function(response) {
-                    alert(response);
-                    location.reload();
-                },
-                error: function() {
-                    alert('An error occurred while adding the device.');
+                for (let i = 0; i < count; i++) {
+                    timeInputs.append(`
+                        <div>
+                            <label for="schedule_time_${i}">Set Time ${i + 1}:</label>
+                            <input type="time" id="schedule_time_${i}" name="schedule_times[]" required />
+                        </div>
+                    `);
                 }
             });
-        });
 
-        $('#startDateForm').on('submit', function(event) {
-            event.preventDefault();
+            // Handle form submission
+            $('#scheduleForm').on('submit', function (event) {
+                event.preventDefault();
 
-            const deviceId = $('#device_id').val();
-            const startDate = $('#start_date').val();
+                const deviceId = $('#device_id').val();
+                const selectedDays = $('input[name="days[]"]:checked').map(function () {
+                    return $(this).val();
+                }).get();
+                const executionCount = $('#execution_count').val();
+                const scheduleTimes = $('input[name="schedule_times[]"]').map(function () {
+                    return $(this).val();
+                }).get();
 
-            if (!deviceId) {
-                alert("Please select a device.");
-                return;
-            }
-
-            $.ajax({
-                url: 'set-schedule.php',
-                type: 'POST',
-                data: {
-                    device_id: deviceId,
-                    start_date: startDate
-                },
-                dataType: 'json',
-                success: function(response) {
-                    if (response.error) {
-                        alert(response.error);
-                    } else if (response.success) {
-                        alert(response.success);
-                        window.location.reload();
-                    }
-                },
-                error: function() {
-                    alert('An error occurred while processing your request.');
+                if (!deviceId || selectedDays.length === 0 || !executionCount || scheduleTimes.length === 0) {
+                    alert("All fields are required.");
+                    return;
                 }
-            });
-        });
 
-        $('#clearScheduleButton').on('click', function(event) {
-            event.preventDefault();
-
-            const deviceId = $('#clear_device_id').val();
-            if (!deviceId) {
-                alert("Please select a device to clear the schedule.");
-                return;
-            }
-
-            $.ajax({
-                url: 'clear-schedule.php',
-                type: 'POST',
-                data: { device_id: deviceId },
-                dataType: 'json',
-                success: function(response) {
-                    if (response.error) {
-                        alert(response.error);
-                    } else if (response.success) {
-                        alert(response.success);
-                        location.reload();
-                    }
-                },
-                error: function(err) {
-                    alert('An error occurred while processing your request.' + err);
-                }
-            });
-        });
-    });
-
-    function removeDevice(deviceId) {
-    if (confirm("Are you sure you want to remove this device?")) {
-        $.ajax({
-            url: 'remove-device.php',
-            type: 'POST',
-            data: { device_id: deviceId },
-            success: function(response) {
-                alert(response);
-                location.reload();  // Reload the page to reflect the changes
-            },
-            error: function() {
-                alert('An error occurred while removing the device.');
-            }
-        });
-    }
-}
-
-setInterval(() => {
-    fetch('fetch-active-schedules.php')
-        .then(response => response.json())
-        .then(schedules => {
-            schedules.forEach(schedule => {
-                const now = new Date().getTime();
-                const nextExecution = schedule.last_execution_time
-                    ? new Date(schedule.last_execution_time).getTime() + parseInt(schedule.interval_ms)
-                    : now;
-
-                if (now >= nextExecution) {
-                    controlDeviceRelay(schedule.device_id, 'on');
-
-                    // Update last execution time
-                    $.ajax({
-                        url: 'update-schedule-execution.php',
-                        type: 'POST',
-                        data: { schedule_id: schedule.id },
-                        success: function (response) {
-                            console.log(`Execution updated for schedule ${schedule.id}: ${response}`);
-                        },
-                        error: function () {
-                            console.error('Error updating schedule execution.');
+                $.ajax({
+                    url: 'set-schedule.php',
+                    type: 'POST',
+                    data: {
+                        device_id: deviceId,
+                        days: selectedDays,
+                        execution_count: executionCount,
+                        schedule_times: scheduleTimes
+                    },
+                    dataType: 'json',
+                    success: function (response) {
+                        if (response.error) {
+                            alert(response.error);
+                        } else if (response.success) {
+                            alert(response.success);
+                            window.location.reload();
                         }
-                    });
-                }
+                    },
+                    error: function () {
+                        alert('An error occurred while processing your request.');
+                    }
+                });
             });
-        })
-        .catch(error => console.error('Error fetching schedules:', error));
-}, 60000);
- // Check e
- function checkAndUpdateRelay() {
-    fetch('check-and-update-relay.php')
-        .then(response => response.json())
-        .then(data => {
-            data.forEach(message => console.log(message)); // Log response messages
-        })
-        .catch(error => console.error('Error:', error));
-}
+        });
+    </script>
+    <script>
+// $(document).ready(function () {
+//     // Dynamically generate time inputs based on execution count
+//     $('#execution_count').on('input', function () {
+//         let count = $(this).val();
+//         let timeInputs = $('#timeInputs');
+//         timeInputs.empty();
 
-// Check every 10 seconds (adjust as needed)
-setInterval(checkAndUpdateRelay, 10000);
-function clearSelectedSchedule() {
-    const deviceSelect = document.getElementById('device-select');
-    const selectedDeviceId = deviceSelect.value;
+//         for (let i = 0; i < count; i++) {
+//             timeInputs.append(`
+//                 <div>
+//                     <label for="schedule_time_${i}">Set Time ${i + 1}:</label>
+//                     <input type="time" id="schedule_time_${i}" name="schedule_time[]" required />
+//                 </div>
+//             `);
+//         }
+//     });
 
-    if (!selectedDeviceId) {
-        alert('Please select a device.');
-        return;
-    }
+//     // Handle form submission
+//     $('#scheduleForm').on('submit', function (event) {
+//         event.preventDefault();
 
-    if (confirm('Are you sure you want to clear the schedule for this device?')) {
-        const xhr = new XMLHttpRequest();
-        xhr.open('POST', 'clear_schedule.php', true);
-        xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
-        xhr.onload = function () {
-            if (xhr.status === 200) {
-                alert(xhr.responseText);
-                location.reload(); // Refresh the page to reflect changes
-            } else {
-                alert('Failed to clear schedule.');
-            }
-        };
-        xhr.send('device_id=' + selectedDeviceId);
-    }
-}
-</script>
+//         const deviceId = $('#device_id').val();
+//         const triggerDay = $('#trigger_day').val();  // Selected single day from dropdown
+//         const additionalDays = $("input[name='additional_days[]']:checked").map(function() {
+//             return $(this).val();
+//         }).get();  // Selected days from checkboxes
+//         const executionCount = $('#execution_count').val();
+//         const scheduleTimes = $('input[name="schedule_time[]"]').map(function () {
+//             return $(this).val();
+//         }).get();
+
+//         if (!deviceId || (!triggerDay && additionalDays.length === 0) || !executionCount || scheduleTimes.length === 0) {
+//             alert("All fields are required.");
+//             return;
+//         }
+
+//         $.ajax({
+//             url: 'set-schedule.php',
+//             type: 'POST',
+//             data: {
+//                 device_id: deviceId,
+//                 trigger_day: triggerDay,  // The main selected day
+//                 additional_days: additionalDays,  // Array of additional selected days
+//                 execution_count: executionCount,
+//                 schedule_times: scheduleTimes
+//             },
+//             dataType: 'json',
+//             success: function (response) {
+//                 if (response.error) {
+//                     alert(response.error);
+//                 } else if (response.success) {
+//                     alert(response.success);
+//                     window.location.reload();
+//                 }
+//             },
+//             error: function () {
+//                 alert('An error occurred while processing your request.');
+//             }
+//         });
+//     });
+// });
+
+    //     $(document).ready(function () {
+    //         $('#startDateForm').on('submit', function (event) {
+    //             event.preventDefault();
+
+    //             const deviceId = $('#device_id').val();
+    //             const startDate = $('#start_date').val();
+    //             const triggerDay = $('#trigger_day').val(); // Get selected day
+
+    //             if (!deviceId) {
+    //                 alert("Please select a device.");
+    //                 return;
+    //             }
+
+    //             $.ajax({
+    //                 url: 'set-schedule.php',
+    //                 type: 'POST',
+    //                 data: {
+    //                     device_id: deviceId,
+    //                     start_date: startDate,
+    //                     trigger_day: triggerDay // Send selected day to the backend
+    //                 },
+    //                 dataType: 'json',
+    //                 success: function (response) {
+    //                     if (response.error) {
+    //                         alert(response.error);
+    //                     } else if (response.success) {
+    //                         alert(response.success);
+    //                         window.location.reload();
+    //                     }
+    //                 },
+    //                 error: function () {
+    //                     alert('An error occurred while processing your request.');
+    //                 }
+    //             });
+    //         });
+    //     });
+
+        // $(document).ready(function () {
+        //     $('#scheduleForm').on('submit', function (event) {
+        //         event.preventDefault();
+
+        //         const deviceId = $('#device_id').val();
+        //         const triggerDay = $('#trigger_day').val();
+        //         const scheduleTime = $('#schedule_time').val();
+
+        //         if (!deviceId || !triggerDay || !scheduleTime) {
+        //             alert("All fields are required.");
+        //             return;
+        //         }
+
+        //         $.ajax({
+        //             url: 'set-schedule.php',
+        //             type: 'POST',
+        //             data: {
+        //                 device_id: deviceId,
+        //                 trigger_day: triggerDay,
+        //                 schedule_time: scheduleTime
+        //             },
+        //             dataType: 'json',
+        //             success: function (response) {
+        //                 if (response.error) {
+        //                     alert(response.error);
+        //                 } else if (response.success) {
+        //                     alert(response.success);
+        //                     window.location.reload();
+        //                 }
+        //             },
+        //             error: function () {
+        //                 alert('An error occurred while processing your request.');
+        //             }
+        //         });
+        //     });
+        // });
+     </script>
+</body>
+
 <style>
     .device-grid {
     display: flex;
@@ -637,7 +487,7 @@ button:hover {
 
         button {
             padding: 10px 20px;
-            background:rgb(73, 241, 87);
+            background:rgb(0, 77, 6);
             border: none;
             border-radius: 6px;
             color: #fff;

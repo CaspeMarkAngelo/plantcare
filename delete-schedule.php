@@ -5,7 +5,7 @@ include('config/db.php');
 $current_time = new DateTime();
 
 // Query to find any schedule that has passed
-$query = $conn->prepare("SELECT * FROM watering_time WHERE start_date <= NOW()");
+$query = $conn->prepare("SELECT * FROM watering_time WHERE CONCAT(schedule_date, ' ', schedule_time)  <= NOW()");
 $query->execute();
 $result = $query->get_result();
 

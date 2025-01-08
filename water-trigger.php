@@ -166,20 +166,26 @@ while ($row = $result->fetch_assoc()) {
                                 <br>
         <!-- Display Scheduled Devices and Their Schedules -->
         <div class="schedules-container">
-            <div class="schedule-list">
-                <h5>Scheduled Devices</h5>
-                <div class="scheduled-devices">
-                    <?php foreach ($schedules as $schedule): ?>
-                        <div class="scheduled-device-card">
-                            <h4>Device: <?php echo htmlspecialchars($schedule['device_name']); ?></h4>
-                            <p>Schedule Start: <?php
-                                $startDateTime = new DateTime($schedule['start_date']);
-                                echo $startDateTime->format('F j, Y - g:i a');
-                            ?></p>
-                         <span style="color: red;" class="clear-schedule" onclick="clearSchedule(<?php echo $device['id']; ?>)">&#10006;</span>
-                        </div>
-                    <?php endforeach; ?>
+    <div class="schedule-list">
+        <h5>Scheduled Devices</h5>
+        <div class="scheduled-devices">
+            <?php foreach ($schedules as $schedule): ?>
+                <div class="scheduled-device-card">
+                    <h4>Device: <?php echo htmlspecialchars($schedule['device_name']); ?></h4>
+                    <p>Schedule Start: <span style="color: red;" class="remove-schedule" onclick="removeSchedule(<?php echo $schedule['id']; ?>)">&#10006;</span><?php
+                        $stime = $schedule['schedule_time'];
+                        $sday = $schedule['schedule_date'];
+                        $startDateTime = new DateTime("$sday $stime");
+                        echo $startDateTime->format('F j, Y - g:i a');
+                        echo " ".$schedule['trigger_day']
+                    ?></p>
+                    
                 </div>
+            <?php endforeach; ?>
+        </div>
+    </div>
+</div>
+
                 <div class="scheduled-devices-container">
 
                 <div class="device-cards-container">
@@ -227,6 +233,32 @@ while ($row = $result->fetch_assoc()) {
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha3/dist/js/bootstrap.bundle.min.js"></script>
 
 <script src="js/trigger.js"></script>
+<script>
+    // Periodically check the schedules (every minute or as needed)
+    function checkAndInsertSchedules() {
+        $.ajax({
+        url: 'check-schedule.php',
+        type: 'GET',
+        dataType: 'json',
+        success: function(response) {
+            if (response.success) {
+                console.log('Schedules checked and inserted successfully.');
+                // Optionally, you can reload the page or update the display
+                window.location.reload();
+            } else if (response.error) {
+                console.log('Error occurred: ' + response.error);
+            } else {
+                console.log('No new schedules to insert.');
+            }
+        },
+        error: function() {
+            console.log('Error occurred while checking schedules.');
+        }
+    });
+}
+    // Set the function to run every minute (60000 ms)
+    setInterval(checkAndInsertSchedules, 60000); // Adjust the interval as needed
+</script>
 <script>
 
 function clearScheduler() {
@@ -381,6 +413,29 @@ function insertSchedule(deviceId, plantId, plantData) {
     });
     
 }
+function removeSchedule(scheduleId) {
+    if (confirm('Are you sure you want to delete this schedule?')) {
+        $.ajax({
+            url: 'remove-schedule.php', // The PHP file that will handle the deletion
+            type: 'POST',
+            data: {
+                schedule_id: scheduleId
+            },
+            dataType: 'json',
+            success: function(response) {
+                if (response.success) {
+                    alert('Schedule deleted successfully.');
+                    window.location.reload(); // Reload the page to reflect the deletion
+                } else {
+                    alert('Failed to delete the schedule.');
+                }
+            },
+            error: function() {
+                alert('An error occurred while trying to delete the schedule.');
+            }
+        });
+    }
+}
 
 
 
@@ -514,7 +569,7 @@ function closeModal() {
         })
         .catch(error => console.error('Error:', error));
 }
-setInterval(checkScheduledDevice, 1000); 
+setInterval(checkScheduledDevice, 100); 
 
 function checkAndDeleteSchedules() {
     fetch('delete-schedule.php')
@@ -810,6 +865,7 @@ function fetchNotifications() {
         document.getElementById('notificationsModal').addEventListener('show.bs.modal', fetchNotifications);
     </script>
 </script>
+
 
 <style>
         /* General Styles */
