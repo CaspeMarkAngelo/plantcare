@@ -1,0 +1,100 @@
+[
+    {
+        "item": "Basil",
+        "x": 156,
+        "y": 256.8888854980469,
+        "width": 40,
+        "height": 40
+    },
+    {
+        "item": "Basil",
+        "x": 130,
+        "y": 169.88888549804688,
+        "width": 40,
+        "height": 40
+    },
+    {
+        "item": "Basil",
+        "x": 101,
+        "y": 282.8888854980469,
+        "width": 40,
+        "height": 40
+    },
+    {
+        "item": "Basil",
+        "x": 82,
+        "y": 333.8888854980469,
+        "width": 40,
+        "height": 40
+    },
+    {
+        "item": "Basil",
+        "x": 58,
+        "y": 332.8888854980469,
+        "width": 40,
+        "height": 40
+    },
+    {
+        "item": "BitterGourd",
+        "x": 76,
+        "y": 175.88888549804688,
+        "width": 40,
+        "height": 40
+    },
+    {
+        "item": "BitterGourd",
+        "x": 106,
+        "y": 284.8888854980469,
+        "width": 40,
+        "height": 40
+    },
+    {
+        "item": "BitterGourd",
+        "x": 215,
+        "y": 341.8888854980469,
+        "width": 40,
+        "height": 40
+    },
+    {
+        "item": "BitterGourd",
+        "x": 218,
+        "y": 360.8888854980469,
+        "width": 40,
+        "height": 40
+    },
+    {
+        "item": "BitterGourd",
+        "x": 50,
+        "y": 381.8888854980469,
+        "width": 40,
+        "height": 40
+    },
+    {
+        "item": "BokChoy",
+        "x": 262,
+        "y": 286.8888854980469,
+        "width": 40,
+        "height": 40
+    },
+    {
+        "item": "BokChoy",
+        "x": 198,
+        "y": 377.8888854980469,
+        "width": 40,
+        "height": 40
+    },
+    {
+        "item": "BokChoy",
+        "x": 92,
+        "y": 359.8888854980469,
+        "width": 40,
+        "height": 40
+    },
+    {
+        "item": "BokChoy",
+        "x": 167,
+        "y": 329.8888854980469,
+        "width": 40,
+        "height": 40
+    }
+]
