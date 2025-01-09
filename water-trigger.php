@@ -201,27 +201,7 @@ $unread_count = $unread_count_result->fetch_assoc()['unread_count'];
 </div>
               <br>
                                 <br>
-        <!-- Display Scheduled Devices and Their Schedules -->
-        <div class="schedules-container">
-    <div class="schedule-list">
-        <h5>Scheduled Devices</h5>
-        <div class="scheduled-devices">
-            <?php foreach ($schedules as $schedule): ?>
-                <div class="scheduled-device-card">
-                    <h4>Device: <?php echo htmlspecialchars($schedule['device_name']); ?></h4>
-                    <p>Schedule Start: <span style="color: red;" class="remove-schedule" onclick="removeSchedule(<?php echo $schedule['id']; ?>)">&#10006;</span><?php
-                        $stime = $schedule['schedule_time'];
-                        $sday = $schedule['schedule_date'];
-                        $startDateTime = new DateTime("$sday $stime");
-                        echo $startDateTime->format('F j, Y - g:i a');
-                        echo " ".$schedule['trigger_day']
-                    ?></p>
-                    
-                </div>
-            <?php endforeach; ?>
-        </div>
-    </div>
-</div>
+       
 
                 <div class="scheduled-devices-container">
 
