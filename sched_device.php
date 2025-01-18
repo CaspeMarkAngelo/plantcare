@@ -3,8 +3,31 @@ include('config/db.php');
 include('sensors.php');
 include('sidebar.php');
 
+// Handle the "Clear All" request
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['clear_all'])) {
+    $query = "DELETE FROM watering_time"; // Query to delete all records
+    if ($conn->query($query)) {
+        $response = "All schedules cleared successfully.";
+    } else {
+        $response = "Error clearing schedules: " . $conn->error;
+    }
+}
+
+// Handle the "Delete Specific Schedule" request
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['schedule_id'])) {
+    $scheduleId = $_POST['schedule_id'];
+    $query = "DELETE FROM watering_time WHERE id = ?";
+    $stmt = $conn->prepare($query);
+    $stmt->bind_param("i", $scheduleId);
+    if ($stmt->execute()) {
+        echo "Schedule deleted successfully.";
+    } else {
+        echo "Error deleting schedule: " . $conn->error;
+    }
+}
+
 // Fetching schedule data
-$query = "SELECT wt.id, wt.device_id, wt.schedule_date, wt.schedule_time, wt.trigger_day, wt.status, dc.device_name 
+$query = "SELECT wt.id, wt.device_id, wt.schedule_date, wt.schedule_time, wt.trigger_day, wt.status, dc.device_name , wt.level
     FROM watering_time AS wt
     JOIN device_config AS dc ON wt.device_id = dc.id
     ORDER BY wt.schedule_date";
@@ -16,108 +39,197 @@ if ($result && $result->num_rows > 0) {
     while ($row = $result->fetch_assoc()) {
         $scheduledDevices[] = $row;
     }
-} 
+}
+
+// Group schedules by date
+$groupedSchedules = [];
+foreach ($scheduledDevices as $schedule) {
+    $scheduleDate = new DateTime($schedule['schedule_date']);
+    $scheduleDateFormatted = $scheduleDate->format('Y-m-d');
+    $groupedSchedules[$scheduleDateFormatted][] = $schedule;
+}
+
+// Get current month and year (default to current month)
+$selectedMonth = isset($_POST['month']) ? $_POST['month'] : date('m');
+$selectedYear = date('Y');
 ?>
 
-<!-- Display Scheduled Devices and Their Schedules -->
-<div class="schedules-container">
-    <div class="schedule-list">
-        <h2>Scheduled Devices</h2><br>
-        <div class="scheduled-devices">
-            <?php
-            // Group schedules by device name
-            $groupedSchedules = [];
-            foreach ($scheduledDevices as $schedule) {
-                $groupedSchedules[$schedule['device_name']][] = $schedule;
+<div class="content">
+    <!-- Display Calendar -->
+    <div class="calendar-container">
+        <h2>Schedules for <?php echo date('F Y', strtotime("$selectedYear-$selectedMonth-01")); ?></h2>
+        
+        <!-- Clear All Button -->
+        <form method="POST">
+            <button type="submit" name="clear_all" style="background-color: red; color: white; padding: 10px; border: none; cursor: pointer;">
+                Clear All Schedules
+            </button>
+        </form>
+
+        <!-- Month Selection Dropdown -->
+        <form method="POST" style="margin-top: 20px;">
+            <select name="month" onchange="this.form.submit()">
+                <?php
+                // Loop through all months and create options
+                for ($month = 1; $month <= 12; $month++) {
+                    $monthName = date('F', strtotime("2023-$month-01"));
+                    $selected = $month == $selectedMonth ? 'selected' : '';
+                    echo "<option value='$month' $selected>$monthName</option>";
+                }
+                ?>
+            </select>
+        </form>
+
+        <?php
+        // Loop through each day of the selected month
+        $firstDayOfMonth = new DateTime("$selectedYear-$selectedMonth-01");
+        $daysInMonth = (int) $firstDayOfMonth->format('t');
+        $startDayOfWeek = (int) $firstDayOfMonth->format('w');
+
+        echo "<div class='calendar-grid'>";
+
+        // Display the days of the week header
+        $daysOfWeek = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+        foreach ($daysOfWeek as $day) {
+            echo "<div class='calendar-day-header'>$day</div>";
+        }
+
+        // Display empty cells for days before the first day of the month
+        for ($i = 0; $i < $startDayOfWeek; $i++) {
+            echo "<div class='calendar-day'></div>";
+        }
+
+        // Display each day of the month
+        for ($day = 1; $day <= $daysInMonth; $day++) {
+            $date = "$selectedYear-" . str_pad($selectedMonth, 2, '0', STR_PAD_LEFT) . "-" . str_pad($day, 2, '0', STR_PAD_LEFT);
+            echo "<div class='calendar-day'>";
+            echo "<div class='calendar-day-number'>$day</div>";
+
+            // Check if there are any schedules for this day
+            if (isset($groupedSchedules[$date])) {
+                foreach ($groupedSchedules[$date] as $schedule) {
+                    $startDateTime = new DateTime($schedule['schedule_date'] . ' ' . $schedule['schedule_time']);
+                    echo "<div class='schedule-item'>
+                            <p><strong>{$schedule['device_name']}</strong></p>
+                            <p>Time: {$startDateTime->format('g:i a')}</p>
+                            <p>Status: {$schedule['level']}</p>
+                            <p><span class='remove-schedule' onclick='removeSchedule({$schedule['id']})'>&#10006; Remove</span></p>
+                          </div>";
+                }
             }
 
-            // Iterate over grouped schedules
-            foreach ($groupedSchedules as $deviceName => $deviceSchedules): ?>
-                <div class="scheduled-device-card">
-                    <h3 class="device-title"><?php echo htmlspecialchars($deviceName); ?></h3>
-                    <div class="schedule-details">
-                        <?php foreach ($deviceSchedules as $schedule): ?>
-                            <div class="schedule-item">
-                                <p><strong>Schedule Start:</strong> 
-                                    <span style="color: white;" class="remove-schedule" onclick="removeSchedule(<?php echo $schedule['id']; ?>)">&#10006;</span>
-                                </p>
-                                <p>
-                                    <?php
-                                    $startDateTime = isset($schedule['schedule_date']) && isset($schedule['schedule_time']) 
-                                        ? new DateTime($schedule['schedule_date'] . ' ' . $schedule['schedule_time']) 
-                                        : null;
-                                    echo $startDateTime 
-                                        ? $startDateTime->format('F j, Y - g:i a') 
-                                        : "N/A";
-                                    ?>
-                                </p>
-                                <p><strong>Frequency:</strong> <?php echo htmlspecialchars($schedule['trigger_day'] ?? "N/A"); ?></p>
-                                <p><strong>Status:</strong> <?php echo htmlspecialchars($schedule['status'] ?? "N/A"); ?></p>
-                            </div>
-                        <?php endforeach; ?>
-                    </div>
-                </div>
-            <?php endforeach; ?>
-        </div>
+            echo "</div>"; // Close calendar day
+        }
+
+        echo "</div>"; // Close calendar grid
+        ?>
     </div>
 </div>
 
+<!-- Add Styles for the Calendar -->
 <style>
-.schedules-container {
-    margin-left: 400px;
+.calendar-container {
     padding: 20px;
     font-family: Arial, sans-serif;
-    max-width: 600px;
 }
 
-.schedule-list {
-    background: #f9f9f9;
-    padding: 15px;
-    border-radius: 8px;
-    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+.calendar-grid {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 10px;
+    margin-top: 20px;
 }
 
-.scheduled-devices {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 15px;
+.calendar-day-header {
+    text-align: center;
+    font-weight: bold;
+    background-color: #f2f2f2;
+    padding: 10px;
 }
 
-.scheduled-device-card {
-    flex: 1 1 calc(33% - 20px);
-    background: #fff;
-    border: 1px solid #ddd;
-    border-radius: 8px;
-    padding: 15px;
-    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+.calendar-day {
+    padding: 10px;
+    min-height: 100px;
+    border: 1px solid black;
+    border-radius: 5px;
+    background-color: #fff;
 }
 
-.device-title {
-    font-size: 18px;
+.calendar-day-number {
+    text-align: center;
+    font-weight: bold;
     margin-bottom: 10px;
-    color: #333;
-}
-
-.schedule-details {
-    margin-top: 10px;
 }
 
 .schedule-item {
-    border-top: 1px solid #eee;
-    padding: 10px 0;
-    font-size: 14px;
-}
-
-.schedule-item:first-child {
-    border-top: none;
+    background-color: #f1f1f1;
+    padding: 5px;
+    margin-bottom: 5px;
+    border-radius: 5px;
 }
 
 .remove-schedule {
     cursor: pointer;
+    color: red;
     font-weight: bold;
 }
 
 .remove-schedule:hover {
-    color: darkred;
+    text-decoration: underline;
 }
 </style>
+
+<script>
+function removeSchedule(scheduleId) {
+    if (confirm("Are you sure you want to delete this schedule?")) {
+        var xhr = new XMLHttpRequest();
+        xhr.open("POST", "", true); // Same page (empty URL)
+        xhr.setRequestHeader("Content-Type", "application/x-www-form-urlencoded");
+
+        // Send schedule ID to delete
+        xhr.send("schedule_id=" + scheduleId);
+
+        // Wait for the response from the server
+        xhr.onload = function() {
+            if (xhr.status === 200) {
+                alert("Schedule deleted successfully.");
+                location.reload();  // Reload the page to update the schedule list
+            } else {
+                alert("Error deleting schedule.");
+            }
+        };
+    }
+}
+
+setInterval(function () {
+    var xhr = new XMLHttpRequest();
+    xhr.open("POST", "update_schedule.php", true);
+    xhr.setRequestHeader("Content-Type", "application/x-www-form-urlencoded");
+
+    xhr.onload = function () {
+        if (xhr.status === 200) {
+            console.log(xhr.responseText); // Debug server response
+            try {
+                var response = JSON.parse(xhr.responseText);
+                if (response.success) {
+                    alert(response.message); // Success message
+                    location.reload(); // Reload page to update schedules
+                } else {
+                    console.log(response.message); // Log when no update occurs
+                }
+            } catch (e) {
+                console.error("Invalid JSON response:", xhr.responseText);
+            }
+        } else {
+            console.error("Failed to update schedules. Status:", xhr.status);
+        }
+    };
+
+    xhr.onerror = function () {
+        console.error("Error occurred during schedule update request.");
+    };
+
+    xhr.send(); // Trigger the update script
+}, 150); // Run every 15 seconds
+
+</script>

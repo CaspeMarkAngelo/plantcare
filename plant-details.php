@@ -129,6 +129,13 @@ if ($result->num_rows > 0) {
                         <p><?php echo $plant['soil_moisture']; ?></p>
                     </div>
                 </div>
+                <br>
+                <br>
+                <button 
+                    class="set-schedule-btn" style="background-image: linear-gradient(to bottom right, #00CC33, #1B8A6B); padding: 20px; border-radius: 5px;"
+                    onclick="window.location.href='schedule.php?id=<?php echo $plant_id; ?>'">
+                    Set Schedule
+                </button>
             </div>
         </div>
     </div>

@@ -2,7 +2,7 @@
 include('config/db.php');
 
 // Fetch notifications from the database
-$query = "SELECT id, device_id, message, created_at, device_name FROM notifications ORDER BY created_at DESC LIMIT 5"; // Adjust the LIMIT as needed
+$query = "SELECT id, device_id, message, created_at, device_name FROM notifications  GROUP BY message ORDER BY created_at DESC LIMIT 5"; // Adjust the LIMIT as needed
 $result = $conn->query($query);
 
 $notifications = [];

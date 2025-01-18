@@ -26,7 +26,7 @@ $conn->close();
             cursor: pointer;
         }
         #notification-count {
-            position: absolute;
+            position: relative;
             top: -5px;
             right: -5px;
             background-color: red;
@@ -48,11 +48,16 @@ $conn->close();
 
         <!-- Notification Icon and Count -->
         <div id="notification-icon" style="position: relative; cursor: pointer;">
-            <span class="icon">
-                <img src="notification.png" alt="Notifications" width="30">
-            </span>
-            <span id="notification-count"><?php echo $unread_count; ?></span> <!-- Notification count will be dynamically displayed here -->
+                <span class="icon">
+                    <img src="assets/notification.png" alt="Notifications" width="50">
+                </span>
+                <span id="notification-count" style="position: absolute; top: -5px; right: -5px; background-color: red; color: white; border-radius: 50%; padding: 2px 6px; font-size: 12px; <?php echo ($unread_count > 0) ? 'display: block;' : 'display: none;'; ?>">
+                    <?php echo $unread_count; ?>
+                </span>
+            </div>
         </div>
+    </div>
+        
 
         <!-- Modal for Notifications -->
         <div class="modal fade" id="notificationModal" tabindex="-1" aria-labelledby="notificationModalLabel" aria-hidden="true">

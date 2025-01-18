@@ -1,97 +1,109 @@
 <?php
-// Include necessary files
 include('config/db.php');
-include('sensors.php');
-include('sidebar.php');
 
-// Check if form data has been sent via POST
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    // Get data from the form
     $device_id = $_POST['device_id'];
-    $days = $_POST['days']; // Array of selected days (e.g., Monday, Tuesday, etc.)
+    $days = $_POST['days']; // Array of selected days
     $execution_count = $_POST['execution_count'];
-    $schedule_times = $_POST['schedule_times']; // Array of times (e.g., 08:00, 12:00)
-    $status = $_POST['status']; // Schedule type (daily, weekly, etc.)
+    $schedule_times = $_POST['schedule_times']; // Array of schedule times
+    $status = $_POST['status']; // 'daily', 'weekly', or 'monthly'
+    $start_date = $_POST['start_date']; // Start date
+    $end_date = $_POST['end_date']; // End date
 
-    // Check if all required fields are provided
-    if (empty($device_id) || empty($days) || empty($execution_count) || empty($schedule_times) || empty($status)) {
+    if (!$device_id || empty($days) || !$execution_count || empty($schedule_times) || !$status || !$start_date || !$end_date) {
         echo json_encode(['error' => 'All fields are required.']);
         exit;
     }
 
-    // If "Weekly" is selected, insert schedule for 4 weeks
-    if ($status === 'weekly') {
-        $currentDate = date('Y-m-d'); // Start from today (or use the first day of the month if needed)
+    // Convert dates to DateTime objects
+    $startDateObj = new DateTime($start_date);
+    $endDateObj = new DateTime($end_date);
 
-        // Loop through each selected day (e.g., Sunday, Monday)
-        foreach ($days as $day) {
-            for ($i = 0; $i < 4; $i++) { // 4 weeks of schedules
-                // Calculate the date for the specific day of the week in the next 4 weeks
-                $nextExecutionDate = date('Y-m-d', strtotime("next $day +$i week"));
-
-                // Loop through each scheduled time
-                foreach ($schedule_times as $time) {
-                    // Prepare the schedule insertion query
-                    $query = "INSERT INTO watering_time (device_id, trigger_day, schedule_time, schedule_date, status)
-                              VALUES (?, ?, ?, ?, ?)";
-                    $stmt = $conn->prepare($query);
-                    $stmt->bind_param("issss", $device_id, $day, $time, $nextExecutionDate, $status);
-
-                    // Execute the query
-                    if (!$stmt->execute()) {
-                        echo json_encode(['error' => 'Failed to add schedule for ' . $nextExecutionDate]);
-                        exit;
-                    }
-                }
-            }
-        }
-
-        echo json_encode(['success' => 'Weekly schedule successfully added.']);
+    if ($startDateObj > $endDateObj) {
+        echo json_encode(['error' => 'End date must be later than or equal to the start date.']);
         exit;
     }
 
-    // If "Daily" is selected, insert daily schedule
-    if ($status === 'daily') {
-        foreach ($days as $day) {
-            foreach ($schedule_times as $time) {
-                $query = "INSERT INTO watering_time (device_id, trigger_day, schedule_time, schedule_date, status)
-                          VALUES (?, ?, ?, ?, ?)";
-                $stmt = $conn->prepare($query);
-                $stmt->bind_param("issss", $device_id, $day, $time, date('Y-m-d'), $status); // Daily schedule (today's date)
+    // Map days to numeric representation (Sunday = 0, Monday = 1, etc.)
+    $dayMap = [
+        'Sunday' => 0,
+        'Monday' => 1,
+        'Tuesday' => 2,
+        'Wednesday' => 3,
+        'Thursday' => 4,
+        'Friday' => 5,
+        'Saturday' => 6
+    ];
 
-                // Execute the query
-                if (!$stmt->execute()) {
-                    echo json_encode(['error' => 'Failed to add daily schedule for ' . date('Y-m-d')]);
+    // Loop through each day selected
+    foreach ($days as $day) {
+        $dayOfWeek = $dayMap[$day];
+        $currentDate = clone $startDateObj;
+
+        // Adjust to the first occurrence of the selected day
+        $currentDayOfWeek = (int)$currentDate->format('w');
+
+        // If the current day is earlier than or equal to the target day, move forward
+        if ($currentDayOfWeek <= $dayOfWeek) {
+            $currentDate->modify('+' . ($dayOfWeek - $currentDayOfWeek) . ' days');
+        } else {
+            // If the target day is earlier in the week, move to the next week's occurrence of the target day
+            $currentDate->modify('+' . (7 - $currentDayOfWeek + $dayOfWeek) . ' days');
+        }
+
+        // Loop through the dates until the end date
+        while ($currentDate <= $endDateObj) {
+            $schedule_date = $currentDate->format('Y-m-d');
+
+            // Ensure that the date matches the correct day of the week
+            if ((int)$currentDate->format('w') !== $dayOfWeek) {
+                $currentDate->modify('+1 day');
+                continue; // Skip to the next day if it doesn't match
+            }
+
+            // Delete existing schedules that match the same day and time
+            foreach ($schedule_times as $time) {
+                $deleteSql = "DELETE FROM watering_time 
+                              WHERE device_id = '$device_id' 
+                              AND schedule_time = '$time' 
+                              AND schedule_date = '$schedule_date' 
+                              AND status = '$status'";
+                if (!$conn->query($deleteSql)) {
+                    echo json_encode(['error' => 'Failed to delete existing schedule: ' . $conn->error]);
                     exit;
                 }
             }
-        }
 
-        echo json_encode(['success' => 'Daily schedule successfully added.']);
-        exit;
-    }
+            // Insert the new schedule for each selected time
+            foreach ($schedule_times as $time) {
+                $sql = "INSERT INTO watering_time (device_id, trigger_day, schedule_time, every, schedule_date, status, level) 
+                        VALUES ('$device_id', '$day', '$time', '$execution_count', '$schedule_date', '$status','pending')";
 
-    // Handle "Once" status
-    if ($status === 'once') {
-        $currentDate = date('Y-m-d'); // Today's date for "Once"
-        foreach ($schedule_times as $time) {
-            $query = "INSERT INTO watering_time (device_id, trigger_day, schedule_time, schedule_date, status)
-                      VALUES (?, ?, ?, ?, ?)";
-            $stmt = $conn->prepare($query);
-            $stmt->bind_param("issss", $device_id, $currentDate, $time, $currentDate, $status);
+                if (!$conn->query($sql)) {
+                    echo json_encode(['error' => 'Failed to save schedule: ' . $conn->error]);
+                    exit;
+                }
+            }
 
-            if (!$stmt->execute()) {
-                echo json_encode(['error' => 'Failed to add schedule for ' . $currentDate]);
-                exit;
+            // Adjust the current date based on the schedule frequency (daily, weekly, or monthly)
+            switch ($status) {
+                case 'daily':
+                    $currentDate->modify('+1 day');
+                    break;
+                case 'weekly':
+                    $currentDate->modify('+7 days');
+                    break;
+                case 'monthly':
+                    $currentDate->modify('+1 month');
+                    break;
+                default:
+                    echo json_encode(['error' => 'Invalid status.']);
+                    exit;
             }
         }
-
-        echo json_encode(['success' => 'One-time schedule successfully added.']);
-        exit;
     }
 
-    echo json_encode(['error' => 'Invalid schedule status.']);
+    echo json_encode(['success' => 'Schedule saved successfully.']);
     exit;
 }
 ?>
-

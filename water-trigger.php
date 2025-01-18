@@ -16,7 +16,7 @@ if ($devicesResult && $devicesResult->num_rows > 0) {
 $querySchedules = "SELECT wt.*, dc.device_name 
     FROM watering_time AS wt
     JOIN device_config AS dc ON wt.device_id = dc.id
-    ORDER BY wt.start_date DESC LIMIT 5"; // Modify as needed
+    ORDER BY wt.schedule_time DESC LIMIT 5"; // Modify as needed
 $conWateringTime = $conn->query($querySchedules);
 $schedules = [];
 if ($conWateringTime && $conWateringTime->num_rows > 0) {
@@ -56,7 +56,19 @@ while ($row = $result->fetch_assoc()) {
 }
 
 // Fetch notifications and unread count
-$notification_query = "SELECT `id`, `device_id`, `device_name`, `message`, `created_at`, `is_read` FROM `notifications` ORDER BY `id` DESC";
+$notification_query = "SELECT 
+    message,
+    created_at,
+    device_name,
+    MAX(created_at) AS latest_created_at 
+FROM 
+    notifications 
+WHERE 
+    is_read = '0' 
+GROUP BY 
+    message 
+ORDER BY 
+    latest_created_at DESC;";
 $notifications_result = $conn->query($notification_query);
 
 $unread_count_query = "SELECT COUNT(*) AS unread_count FROM notifications WHERE is_read = 0";
@@ -148,27 +160,17 @@ $unread_count = $unread_count_result->fetch_assoc()['unread_count'];
         <br>
 
         <div class="device-grid">
-    <?php foreach ($devices as $device): ?>
-        <div class="device-card">
+        <?php foreach ($devices as $device): ?>
+        <div class="device-card" style ="border: 1px solid black;  box-shadow: 0 4px 10px  #006A4E; font-size: medium; ">
+ 
         <h5 onclick="showSensorData('<?php echo htmlspecialchars($device['device_name']); ?>')" style="cursor: pointer;">
                 <?php echo htmlspecialchars($device['device_name']); ?>
         </h5>
 
-            <label for="plant-select-<?php echo $device['id']; ?>">Select Plant: <?php echo $plantName; ?></label>
-<select id="plant-select-<?php echo $device['id']; ?>" onchange="selectPlant(<?php echo $device['id']; ?>, this.value)">
-    <option value="">-- Select Plant --</option>
-    <?php
-    $plantsQuery = "SELECT id, name FROM plants";
-    $plantsResult = $conn->query($plantsQuery);
-    if ($plantsResult && $plantsResult->num_rows > 0):
-        while ($plant = $plantsResult->fetch_assoc()): ?>
-            <option value="<?php echo $plant['id']; ?>">
-                <?php echo htmlspecialchars($plant['name']); ?>
-            </option>
-        <?php endwhile;
-    endif;
-    ?>
-</select>
+        <div id="device-status-<?php echo htmlspecialchars($device['device_name']); ?>" style="font-weight: bold; color: red;">
+            Status: Disconnected
+        </div>
+
 
             <!-- Soil Moisture Input -->
             <p>Soil Moisture Level: 
@@ -187,7 +189,7 @@ $unread_count = $unread_count_result->fetch_assoc()['unread_count'];
             <p>Relay State: <span><?php echo $device['relay_state']; ?></span></p>
             <br>
             <div class="control-buttons">
-                <button style="background-color: #006A4E;" onclick="removeDevice(<?php echo $device['id']; ?>)">Remove Device</button>
+                <button style="background-color: #831005;" onclick="removeDevice(<?php echo $device['id']; ?>)">Remove Device</button>
                 <button style="background-color: #006A4E;" onclick="controlDeviceRelay(<?php echo $device['id']; ?>, 'on')">Turn Relay ON</button>
                 <button style="background-color: #006A4E;" onclick="controlDeviceRelay(<?php echo $device['id']; ?>, 'off')">Turn Relay OFF</button>
             </div>
@@ -203,45 +205,6 @@ $unread_count = $unread_count_result->fetch_assoc()['unread_count'];
                                 <br>
        
 
-                <div class="scheduled-devices-container">
-
-                <div class="device-cards-container">
-    <?php foreach ($scheduledDevices as $device): ?>
-        <div class="device-card" id="device-card-<?php echo $device['id']; ?>">
-           
-            <p class="next-schedule">Next Schedule: 
-                <?php 
-                    $nextExecution = new DateTime($device['next_execution']);
-                    echo $nextExecution->format('F j, Y - g:i a');
-                ?>
-            </p>
-        </div>
-    <?php endforeach; ?>
-</div>
-<div class="clear-scheduler-container">
-    <h5>Clear Scheduler</h5>
-    <form id="clear-scheduler-form">
-        <label for="device-select">Select Device:</label>
-        <select id="device-select" name="device_id">
-            <option value="">-- Select a Device --</option>
-            <?php
-            // Fetch devices with schedules from the database
-            $devicesQuery = "SELECT id, device_name FROM device_config"; // Replace `devices` with your device table name
-            $devicesResult = $conn->query($devicesQuery);
-            if ($devicesResult && $devicesResult->num_rows > 0):
-                while ($device = $devicesResult->fetch_assoc()): ?>
-                    <option value="<?php echo htmlspecialchars($device['id']); ?>">
-                        <?php echo htmlspecialchars($device['device_name']); ?>
-                    </option>
-                <?php endwhile;
-            endif;
-            ?>
-        </select>
-        <button type="button" id="clear-schedule-btn" onclick="clearScheduler()" style="background-color: #ff4d4d; color: white; padding: 10px 20px; border: none; cursor: pointer;">
-            Clear Schedule
-        </button>
-    </form>
-</div>
 
 
 </div>
@@ -250,6 +213,48 @@ $unread_count = $unread_count_result->fetch_assoc()['unread_count'];
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha3/dist/js/bootstrap.bundle.min.js"></script>
 
 <script src="js/trigger.js"></script>
+<script>
+async function fetchDeviceStatus() {
+    try {
+    const response = await fetch('fetch_device_status.php');
+    const devices = await response.json();
+
+    devices.forEach(device => {
+        // Use the device name to target the correct status element
+        const statusDiv = document.getElementById(`device-status-${device.device_name}`);
+        const controlButtons = document.querySelectorAll(`#device-status-${device.device_name} ~ .control-buttons button`);
+
+        if (statusDiv) {
+            statusDiv.textContent = `Status: ${device.status}`;
+            statusDiv.style.color = device.status === 'Connected' ? 'green' : 'red';
+
+            // Disable buttons if device is disconnected
+            if (device.status === 'Disconnected') {
+                controlButtons.forEach(button => {
+                    button.disabled = true;
+                    button.style.color ='grey';
+                });
+                
+                statusDiv.textContent = 'Status: Offline';
+            } else {
+                controlButtons.forEach(button => {
+                    button.disabled = false;
+                });
+                
+                statusDiv.textContent = 'Status: Online'
+            }
+            
+        }
+    });
+} catch (error) {
+    console.error('Error fetching device status:', error);
+}
+}
+
+// Poll every 5 seconds
+setInterval(fetchDeviceStatus, 5000);
+document.addEventListener('DOMContentLoaded', fetchDeviceStatus);
+</script>
 <script>
     // Periodically check the schedules (every minute or as needed)
     function checkAndInsertSchedules() {
@@ -552,7 +557,7 @@ function closeModal() {
     .catch(error => console.error('Error:', error));
 
     // Fetch control-relay.php with updated relay state
-    fetch(`http://localhost/capstone(test)/control-relay.php`, {
+    fetch(`http://localhost/plantcare/control-relay.php`, {
         method: 'POST',
         headers: {
             'Content-Type': 'application/x-www-form-urlencoded'
@@ -590,24 +595,24 @@ function closeModal() {
 }
 setInterval(checkScheduledDevice, 100); 
 
-function checkAndDeleteSchedules() {
-    fetch('delete-schedule.php')
-        .then(response => response.json())
-        .then(data => {
-            if (data.length > 0) {
-                data.forEach(message => {
-                    console.log(message);
-                    alert(message); 
-                    window.location.reload();  
-                });
-            } else {
-                console.log("No schedules to delete.");
-            }
-        })
-        .catch(error => console.error('Error:', error));
-}
+// function checkAndDeleteSchedules() {
+//     fetch('delete-schedule.php')
+//         .then(response => response.json())
+//         .then(data => {
+//             if (data.length > 0) {
+//                 data.forEach(message => {
+//                     console.log(message);
+//                     alert(message); 
+//                     window.location.reload();  
+//                 });
+//             } else {
+//                 console.log("No schedules to delete.");
+//             }
+//         })
+//         .catch(error => console.error('Error:', error));
+// }
 
-setInterval(checkAndDeleteSchedules, 1500);
+// setInterval(checkAndDeleteSchedules, 1500);
 
 function updateMoistureLevel(deviceId, moistureLevel) {
     if (moistureLevel < 1 || moistureLevel > 100) {
@@ -885,7 +890,50 @@ function fetchNotifications() {
     </script>
 </script>
 
+<script>
+    document.addEventListener("DOMContentLoaded", function () {
+        // Open the modal when the notification icon is clicked
+        document.getElementById("notification-icon").addEventListener("click", function () {
+            var myModal = new bootstrap.Modal(document.getElementById('notificationModal'));
+            myModal.show();
+            
+            // Mark notifications as read
+            markNotificationsRead();
+        });
 
+        // Close the modal when the close button is clicked
+        document.querySelector('.btn-close').addEventListener('click', function () {
+            var myModal = new bootstrap.Modal(document.getElementById('notificationModal'));
+            myModal.hide();
+        });
+    });
+
+    function fetchUnreadCount() {
+        fetch("fetch-unread-count.php")
+            .then(response => response.json())
+            .then(data => {
+                const countSpan = document.getElementById("notification-count");
+                if (data.unread_count > 0) {
+                    countSpan.textContent = data.unread_count;
+                    countSpan.style.display = "block";  // Make the count visible
+                } else {
+                    countSpan.style.display = "none";  // Hide the count if no unread notifications
+                }
+            })
+            .catch(err => console.error(err));
+    }
+
+    function markNotificationsRead() {
+        fetch("mark-notifications-read.php", { method: "POST" })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    document.getElementById("notification-count").style.display = "none"; // Hide the indicator
+                }
+            })
+            .catch(err => console.error(err));
+    }
+</script>
 <style>
         /* General Styles */
         body {
@@ -1014,4 +1062,71 @@ function fetchNotifications() {
         legend{
             font-size: 18px;
         }
+        .device-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr); /* 3 columns */
+    gap: 20px; /* Space between the cards */
+    margin-top: 20px; /* Optional: Space above the grid */
+}
+
+.device-card {
+    border: 1px solid #ccc;
+    padding: 15px;
+    border-radius: 8px;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+    background-color: #fff;
+    box-sizing: border-box; /* Ensures padding does not affect size */
+}
+
+.device-card h5 {
+    margin: 0 0 10px;
+    color: #333;
+    cursor: pointer;
+}
+
+.device-card p {
+    margin: 5px 0;
+}
+
+.device-card .control-buttons {
+    display: flex;
+    gap: 10px;
+    margin-top: 10px;
+}
+
+.device-card button {
+    background-color: #006A4E;
+    color: white;
+    border: none;
+    padding: 8px 15px;
+    border-radius: 5px;
+    cursor: pointer;
+}
+
+.device-card button:hover {
+    background-color: #004D33;
+}
+
+.device-card .connected {
+    color: green;
+}
+
+.device-card .disconnected {
+    color: red;
+}
+
+/* Responsive Design: Stack cards in 2 per row on medium screens */
+@media (max-width: 768px) {
+    .device-grid {
+        grid-template-columns: repeat(2, 1fr); /* 2 columns */
+    }
+}
+
+/* Responsive Design: Stack cards in 1 per row on small screens */
+@media (max-width: 480px) {
+    .device-grid {
+        grid-template-columns: 1fr; /* 1 column */
+    }
+}
+
     </style>

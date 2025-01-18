@@ -7,13 +7,19 @@
     <a href="index.php">Home</a>
     <a href="about-plant.php">About Plant</a>
     <div class="submenu">
-        <a href="schedule.php">Water Trigger</a>
+        <a href="schedule.php">Schedule Trigger</a>
         <div class="submenu-items">
             <a href="sched_device.php">Water Schedule</a>
             <a href="water-history.php">Water History</a>
         </div>
     </div>
-    <a href="water-trigger.php">Advance Water Trigger</a>
+    <div class="submenu">
+    <a href="water-trigger.php"> Water Trigger</a>
+        <div class="submenu-items">
+            <a href="view_watering_logs.php">Device Log</a>
+        </div>
+    </div>
+   
     <a href="show_layout.php">Layout</a>
     <a href="notification.php">Notifications</a>
     <a href="forum/forum.php">Forum</a>

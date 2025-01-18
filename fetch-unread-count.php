@@ -2,7 +2,18 @@
 include('config/db.php');
 
 // Query to fetch unread notifications count
-$query = "SELECT COUNT(*) AS unread_count FROM `notifications` WHERE `is_read` = 0";
+$query = "SELECT 
+    message, 
+    COUNT(*) AS unread_count, 
+    MAX(created_at) AS latest_created_at 
+FROM 
+    notifications 
+WHERE 
+    is_read = 'unread' 
+GROUP BY 
+    message 
+ORDER BY 
+    latest_created_at DESC;";
 $result = $conn->query($query);
 
 // Fetch the unread count and return as JSON
