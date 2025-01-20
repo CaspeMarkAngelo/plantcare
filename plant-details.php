@@ -3,8 +3,11 @@ include('config/db.php');
 $plant_id = $_GET['id'];
 
 // Query to get plant details
-$sql = "SELECT * FROM plants WHERE id = $plant_id";
-$result = $conn->query($sql);
+$sql = "SELECT * FROM plants WHERE id = ?";
+$stmt = $conn->prepare($sql);
+$stmt->bind_param("i", $plant_id);
+$stmt->execute();
+$result = $stmt->get_result();
 
 // Check if plant exists
 if ($result->num_rows > 0) {
@@ -13,95 +16,89 @@ if ($result->num_rows > 0) {
     echo "Plant not found.";
     exit;
 }
+
+// Query to get device details
+$deviceQuery = "SELECT id, device_name FROM device_config";
+$deviceResult = $conn->query($deviceQuery);
+
+// Handle the form submission to update the device_id and moisture level
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['device_id'])) {
+    $device_id = (int) $_POST['device_id'];
+
+    // Get the soil moisture value from the plant
+    $soil_moisture = $plant['soil_moisture'];
+
+    // Update device moisture level in the device_config table
+    $updateDeviceQuery = "UPDATE device_config SET moisture_level = ? WHERE id = ?";
+    $updateStmt = $conn->prepare($updateDeviceQuery);
+    $updateStmt->bind_param("ii", $soil_moisture, $device_id);
+    
+    if ($updateStmt->execute()) {
+        // Update the plant to link with the selected device
+        $updatePlantQuery = "UPDATE plants SET device = ? WHERE id = ?";
+        $plantStmt = $conn->prepare($updatePlantQuery);
+        $plantStmt->bind_param('ii', $device_id, $plant_id);
+
+        if ($plantStmt->execute()) {
+            echo "<script>alert('Device assigned and moisture level updated successfully.');</script>";
+            // Refresh the page to reflect the updated device selection
+            echo "<script>window.location.href = '?id=$plant_id';</script>";
+            exit;
+        } else {
+            echo "<script>alert('Error updating plant device: " . $conn->error . "');</script>";
+        }
+    } else {
+        echo "<script>alert('Error updating device moisture level: " . $conn->error . "');</script>";
+    }
+}
 ?>
-<?php include('sidebar.php'); ?>
+
+<!DOCTYPE html>
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title><?php echo $plant['name']; ?>Details</title>
+    <title><?php echo $plant['name']; ?> Details</title>
     <link rel="stylesheet" href="css/style.css">
     <style>
-    .plant-details-container {
-        display: flex;
-        align-items: flex-start;
-        gap: 10px;
-        margin-top: 20px;
-    }
-
-    .plant-details-left {
-        display: flex;
-        flex-direction: column;
-    }
-
-    .plant-details-img {
-        width: 250px;
-        height: 520px;
-        object-fit: cover;
-        border-radius: 10px;
-        margin-top: -20px;
-    }
-
-    .plant-info p {
-        margin-top: 20px;
-        margin-bottom: 0;
-    }
-
-    .plant-info h2 {
-        color: #006A4E;
-        margin-bottom: 20px;
-    }
-
-    .plant-info p {
-        margin-top: 0;
-    }
-
-    .plant-stats {
-        display: flex;
-        flex-direction: row;
-        justify-content: space-between;
-        gap: 20px;
-        margin-top: 90px;
-    }
-
-    .stat-box {
-        background-image: linear-gradient(to bottom right, #00CC33, #1B8A6B);
-        box-shadow: 5px 8px 0 rgba(0, 0, 0, 0.3), 0 6px 20px 0 rgba(0, 0, 0, 0.19);
-        padding: 20px;
-        border-radius: 10px;
-        flex-grow: 1;
-        text-align: center;
-        transition: transform 0.3s ease, box-shadow 0.3s ease; /* Smooth animation */
-    }
-
-    /* Animation on hover */
-    /* .stat-box:hover {
-        transform: scale(1.05); Slightly enlarges the stat box
-        box-shadow: 0 8px 25px rgba(0, 0, 0, 0.3); Adds a stronger shadow effect
-    } */
-
-    .stat-box h3 {
-        color: white;
-        margin-bottom: 10px;
-    }
-
-    .stat-box p {
-        color: #333;
-    }
-
-    /* Responsive Design */
-    @media only screen and (max-width: 768px) {
         .plant-details-container {
+            display: flex;
+            align-items: flex-start;
+            gap: 10px;
+            margin-top: 20px;
+        }
+        .plant-details-left {
+            display: flex;
             flex-direction: column;
         }
-
+        .plant-details-img {
+            width: 250px;
+            height: 520px;
+            object-fit: cover;
+            border-radius: 10px;
+            margin-top: -20px;
+        }
+        .plant-info h2 {
+            color: #006A4E;
+        }
         .plant-stats {
-            flex-direction: column;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 20px;
+            margin-top: 20px;
         }
-    }
-</style>
-
+        .stat-box {
+            background: linear-gradient(to bottom right, #00CC33, #1B8A6B);
+            padding: 20px;
+            border-radius: 10px;
+            text-align: center;
+            color: white;
+            flex: 1;
+        }
+    </style>
 </head>
 <body>
+<?php include('sidebar.php'); ?>
     <div class="content">
         <h1 style="color: black;">Plant Details</h1>
         <div class="plant-details-container">
@@ -125,14 +122,29 @@ if ($result->num_rows > 0) {
                         <p><?php echo $plant['humidity']; ?></p>
                     </div>
                     <div class="stat-box">
-                        <h3>Soil moisture</h3>
+                        <h3>Soil Moisture</h3>
                         <p><?php echo $plant['soil_moisture']; ?></p>
                     </div>
                 </div>
                 <br>
-                <br>
+                <form method="POST">
+                    <label for="deviceSelect">Assign Device:</label>
+                    <select id="deviceSelect" name="device_id" onchange="this.form.submit()">
+                        <option value="">-- Select Device --</option>
+                        <?php
+                        if ($deviceResult->num_rows > 0):
+                            while ($device = $deviceResult->fetch_assoc()): ?>
+                                <option value="<?php echo $device['id']; ?>" 
+                                    <?php echo $plant['device']  == $device['id'] ? 'selected' : ''; ?>>
+                                    <?php echo htmlspecialchars($device['device_name']); ?>
+                                </option>
+                            <?php endwhile;
+                        endif;
+                        ?>
+                    </select>
+                </form>
                 <button 
-                    class="set-schedule-btn" style="background-image: linear-gradient(to bottom right, #00CC33, #1B8A6B); padding: 20px; border-radius: 5px;"
+                    class="set-schedule-btn" 
                     onclick="window.location.href='schedule.php?id=<?php echo $plant_id; ?>'">
                     Set Schedule
                 </button>

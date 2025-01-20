@@ -1,10 +1,9 @@
 <?php
 include('config/db.php');
-include('sensors.php');
 include('sidebar.php');
 
 // Set the correct timezone
-date_default_timezone_set('Asia/Manila'); // Adjust to your local timezone
+date_default_timezone_set('Asia/Manila');
 
 // Check if plant_id is set and valid
 $plant_id = isset($_GET['id']) ? intval($_GET['id']) : 0;
@@ -20,12 +19,25 @@ if ($plant_id > 0) {
     $plantStmt->close();
 }
 
-// Default values in case plant is not found or id is missing
-$default_start_date = date('Y-m-d');  // Current date
-$default_end_date = date('Y-m-d', strtotime('+7 days'));  // 7 days from today
-$default_execution_count = 1;
-$default_schedule_type = 'none';
-$default_water_schedule = '';
+// Fetch device configuration data
+$deviceQuery = "SELECT id, device_name FROM device_config";
+$deviceResult = $conn->query($deviceQuery);
+
+// Handle form submission for updating device_id
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['device_id'])) {
+    $device_id = (int)$_POST['device_id'];
+    $updateQuery = "UPDATE plants SET device_id = ? WHERE id = ?";
+    $stmt = $conn->prepare($updateQuery);
+    $stmt->bind_param("ii", $device_id, $plant_id);
+    if ($stmt->execute()) {
+        echo "<script>alert('Device assigned successfully.');</script>";
+        echo "<script>window.location.href = '?id=$plant_id';</script>";
+        exit;
+    } else {
+        echo "<script>alert('Error updating device: " . $conn->error . "');</script>";
+    }
+    $stmt->close();
+}
 ?>
 
 <body>
@@ -40,20 +52,18 @@ $default_water_schedule = '';
                 <div class="form-group">
                     <!-- Select Device -->
                     <div>
-                        <label for="device_id">Select Device:</label>
-                        <select id="device_id" name="device_id" required>
-                            <option value="">Select a device</option>
-                            <?php 
-                            // Fetch devices for selection
-                            $queryDevices = "SELECT * FROM device_config";
-                            $devicesResult = $conn->query($queryDevices);
-                            if ($devicesResult && $devicesResult->num_rows > 0) {
-                                while ($device = $devicesResult->fetch_assoc()) {
-                                    echo '<option value="' . $device['id'] . '">' . htmlspecialchars($device['device_name']) . '</option>';
-                                }
-                            }
-                            ?>
-                        </select>
+                    <label for="device_id">Select Device:</label>
+        <select id="device_id" name="device_id" required>
+            <option value="">-- Select a Device --</option>
+            <?php
+            if ($deviceResult && $deviceResult->num_rows > 0) {
+                while ($device = $deviceResult->fetch_assoc()) {
+                    $selected = ($plant && $plant['device'] == $device['id']) ? 'selected' : '';
+                    echo "<option value='{$device['id']}' $selected>{$device['device_name']}</option>";
+                }
+            }
+            ?>
+        </select>
                     </div>
 
                     <!-- Schedule Type Dropdown -->

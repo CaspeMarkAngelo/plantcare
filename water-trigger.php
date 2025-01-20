@@ -183,7 +183,6 @@ $unread_count = $unread_count_result->fetch_assoc()['unread_count'];
                     value="<?php echo htmlspecialchars($device['moisture_level']); ?>" 
                     style="width: 80px;" 
                     placeholder="Enter soil moisture"
-                    onclick="updateMoistureLevel(<?php echo $device['id']; ?>, this.value)"
                 >%
             </p>
             <p>Relay State: <span><?php echo $device['relay_state']; ?></span></p>
@@ -191,7 +190,7 @@ $unread_count = $unread_count_result->fetch_assoc()['unread_count'];
             <div class="control-buttons">
                 <button style="background-color: #831005;" onclick="removeDevice(<?php echo $device['id']; ?>)">Remove Device</button>
                 <button style="background-color: #006A4E;" onclick="controlDeviceRelay(<?php echo $device['id']; ?>, 'on')">Turn Relay ON</button>
-                <button style="background-color: #006A4E;" onclick="controlDeviceRelay(<?php echo $device['id']; ?>, 'off')">Turn Relay OFF</button>
+                <button style="background-color:rgb(0, 108, 128);" onclick="controlDeviceRelay(<?php echo $device['id']; ?>, 'off')">Turn Relay OFF</button>
             </div>
         </div>
     <?php endforeach; ?>
